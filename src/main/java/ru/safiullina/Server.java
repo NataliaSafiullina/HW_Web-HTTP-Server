@@ -54,6 +54,7 @@ public class Server {
                 final var in = new BufferedInputStream(socket.getInputStream());
                 final var out = new BufferedOutputStream(socket.getOutputStream())
         ) {
+            System.out.println("Сокет.порт: " + socket.getPort());
             // Помечаем в in позицию, до которой будем читать
             in.mark(LIMIT);
             // Создаем массив байт с заданным ограничением
@@ -230,7 +231,7 @@ public class Server {
                 .findFirst();
     }
 
-    // from google guava with modifications
+    // from Google guava with modifications
     private static int indexOf(byte[] array, byte[] target, int start, int max) {
         outer:
         for (int i = start; i < max - target.length + 1; i++) {
