@@ -1,8 +1,14 @@
 package ru.safiullina;
 
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URLEncodedUtils;
+
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -78,19 +84,26 @@ public class Server {
                 return;
             }
 
+            // Получаем метод
             var method = requestLine[0];
             if (!allowedMethods.contains(method)) {
                 response(out, 400, "Bad Request");
                 return;
             }
-            System.out.println(method);
 
-            var path = requestLine[1];
+            // Разделим путь и строку query params по знаку вопроса
+            final var stringPathAndQueryParam = requestLine[1].split("\\?");
+
+            // Получаем путь
+            var path = stringPathAndQueryParam[0];
             if (!path.startsWith("/")) {
                 response(out, 400, "Bad Request");
                 return;
             }
-            System.out.println(path);
+
+            // Извлекаем Query Params
+            // Используем утилитный класс URLEncodedUtils, который позволяет «парсить» Query String
+            List<NameValuePair> params = URLEncodedUtils.parse(new URI(requestLine[1]), StandardCharsets.UTF_8);
 
             // Ищем заголовки
             final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
@@ -107,8 +120,7 @@ public class Server {
             in.skip(headersStart);
 
             final var headersBytes = in.readNBytes(headersEnd - headersStart);
-            final var headers = Arrays.asList(new String(headersBytes).split("\r\n"));
-            System.out.println(headers);
+            var headers = Arrays.asList(new String(headersBytes).split("\r\n"));
 
             // для GET тела нет
             if (!method.equals(GET)) {
@@ -124,17 +136,28 @@ public class Server {
                 }
             }
 
-
             // Создаем объект Request
-            Request request = new Request(requestLine[0], requestLine[1]);
+            Request request = new Request(method, path, params, headers);
             if (request.getPath() == null || request.getMethod() == null) {
                 response(out, 400, "Bad Request");
                 return;
             }
 
-            // Ищем handler по методу и пути
+            // Объект Request состоит:
             method = request.getMethod();
+            System.out.println("Метод = " + method);
             path = request.getPath();
+            System.out.println("Путь = " + path);
+            params = request.getQueryParams();
+            System.out.println("Параметры запроса");
+            for (NameValuePair param : params) {
+                System.out.println(param.getName() + " : " + param.getValue());
+            }
+            headers = request.getHeaders();
+            System.out.println(headers);
+
+
+            // Ищем handler по методу и пути
             if (handlersMap.containsKey(method)) {
                 Map<String, Handler> handlerPairsOnMethod = handlersMap.get(method);
                 if (handlerPairsOnMethod.containsKey(path)) {
@@ -163,7 +186,7 @@ public class Server {
             // На все остальные endpoint отвечаем одинаково
             response(out, 200, "OK", filePath);
 
-        } catch (IOException e) {
+        } catch (IOException | URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }
