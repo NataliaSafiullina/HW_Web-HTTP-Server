@@ -123,6 +123,7 @@ public class Server {
             var headers = Arrays.asList(new String(headersBytes).split("\r\n"));
 
             // для GET тела нет
+            List<NameValuePair> bodyParams = new ArrayList<>();
             if (!method.equals(GET)) {
                 in.skip(headersDelimiter.length);
                 // вычитываем Content-Length, чтобы прочитать body
@@ -130,31 +131,43 @@ public class Server {
                 if (contentLength.isPresent()) {
                     final var length = Integer.parseInt(contentLength.get());
                     final var bodyBytes = in.readNBytes(length);
-
                     final var body = new String(bodyBytes);
-                    System.out.println(body);
+                    bodyParams = URLEncodedUtils.parse(body, StandardCharsets.UTF_8);
                 }
             }
 
+
             // Создаем объект Request
-            Request request = new Request(method, path, params, headers);
+            Request request = new Request(method, path, params, headers, bodyParams);
             if (request.getPath() == null || request.getMethod() == null) {
                 response(out, 400, "Bad Request");
                 return;
             }
 
             // Объект Request состоит:
+            System.out.println("\n--- Request ---");
             method = request.getMethod();
             System.out.println("Метод = " + method);
             path = request.getPath();
             System.out.println("Путь = " + path);
+
+            System.out.println("\nПараметры запроса");
             params = request.getQueryParams();
-            System.out.println("Параметры запроса");
             for (NameValuePair param : params) {
                 System.out.println(param.getName() + " : " + param.getValue());
             }
-            headers = request.getHeaders();
-            System.out.println(headers);
+
+            System.out.println("\nЗаголовки");
+            for (String param : request.getHeaders()) {
+                System.out.println(param);
+            }
+
+            System.out.println("\nПараметры тела запроса");
+            bodyParams = request.getPostParams();
+            for (NameValuePair param : bodyParams) {
+                System.out.println(param.getName() + " : " + param.getValue());
+            }
+
 
 
             // Ищем handler по методу и пути

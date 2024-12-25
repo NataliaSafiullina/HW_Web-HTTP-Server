@@ -10,6 +10,9 @@ public class Main {
         Server.addHandler("POST", "/messages", (request, responseStream) -> {
             Server.response(responseStream, 201, "Created");
         });
+        Server.addHandler("POST", "/", (request, responseStream) -> {
+            Server.response(responseStream, 200, "OK");
+        });
 
         Server.start();
 
