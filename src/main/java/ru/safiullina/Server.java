@@ -3,6 +3,7 @@ package ru.safiullina;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 
+import javax.servlet.http.HttpServletRequest;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -140,15 +141,27 @@ public class Server {
                 final var contentType = extractHeader(headers, "Content-Type");
                 if (contentType.isPresent()) {
                     System.out.println("Content-Type : " + contentType);
+                    String[] contentTypeList = contentType.toString().split(";");
+
+                    // Обработка типа multipart/form-data
+                    if (contentTypeList[0].contains("multipart/form-data")) {
+                        System.out.println("multipart/form-data");
+                    }
+
+                    // Обработка типа x-www-form-urlencoded
+                    if (contentTypeList[0].contains("x-www-form-urlencoded")) {
+                        // вычитываем Content-Length, чтобы прочитать body
+                        final var contentLength = extractHeader(headers, "Content-Length");
+                        if (contentLength.isPresent()) {
+                            System.out.println("Content-length : " + contentLength);
+                            final var length = Integer.parseInt(contentLength.get());
+                            final var bodyBytes = in.readNBytes(length);
+                            final var body = new String(bodyBytes);
+                            bodyParams = URLEncodedUtils.parse(body, StandardCharsets.UTF_8);
+                        }
+                    }
                 }
-                // вычитываем Content-Length, чтобы прочитать body
-                final var contentLength = extractHeader(headers, "Content-Length");
-                if (contentLength.isPresent()) {
-                    final var length = Integer.parseInt(contentLength.get());
-                    final var bodyBytes = in.readNBytes(length);
-                    final var body = new String(bodyBytes);
-                    bodyParams = URLEncodedUtils.parse(body, StandardCharsets.UTF_8);
-                }
+
             }
 
 
