@@ -62,6 +62,7 @@ public class Server {
 
     /**
      * Метод handlers выбирает подходящий обработчик по параметрам запроса клиента.
+     *
      * @param socket - получает сокет
      */
     private static void handlers(Socket socket) {
@@ -78,7 +79,7 @@ public class Server {
             final var read = in.read(buffer);
             System.out.printf("Прочитали %d байт \n", read);
             // Прерываем обработку, если прочитали мало байт
-            if (read <= 0) {
+            if (read < 1) {
                 return;
             }
 
@@ -126,16 +127,16 @@ public class Server {
                 response(out, 400, "Bad Request");
                 return;
             }
-
             // отматываем на начало буфера
             in.reset();
             // пропускаем requestLine
             in.skip(headersStart);
 
+            // Читаем и сохраняем заголовки в список строк
             final var headersBytes = in.readNBytes(headersEnd - headersStart);
             var headers = Arrays.asList(new String(headersBytes).split("\r\n"));
 
-            // для GET тела нет
+            // Читаем и парсим тело запроса, при этом для GET тела нет
             List<NameValuePair> bodyParams = new ArrayList<>();
             if (!method.equals(GET)) {
                 in.skip(headersDelimiter.length);
@@ -156,31 +157,8 @@ public class Server {
                 response(out, 400, "Bad Request");
                 return;
             }
-
-            // Объект Request состоит:
-            System.out.println("\n--- Request ---");
-            method = request.getMethod();
-            System.out.println("Метод = " + method);
-            path = request.getPath();
-            System.out.println("Путь = " + path);
-
-            System.out.println("\nПараметры запроса");
-            params = request.getQueryParams();
-            for (NameValuePair param : params) {
-                System.out.println(param.getName() + " : " + param.getValue());
-            }
-
-            System.out.println("\nЗаголовки");
-            for (String param : request.getHeaders()) {
-                System.out.println(param);
-            }
-
-            System.out.println("\nПараметры тела запроса");
-            bodyParams = request.getPostParams();
-            for (NameValuePair param : bodyParams) {
-                System.out.println(param.getName() + " : " + param.getValue());
-            }
-
+            // Объект Request состоит
+            printRequest(request);
 
 
             // Ищем handler по методу и пути
@@ -192,6 +170,7 @@ public class Server {
                     return;
                 }
             }
+
 
             // Если мы дошли до этой точки, значит нужного handler не нашли, запустим обработку по умолчанию
 
@@ -266,8 +245,9 @@ public class Server {
 
     /**
      * Метод addHandler добавляет обработчик запроса
-     * @param method - метод запроса
-     * @param path - путь, endpoint
+     *
+     * @param method  - метод запроса
+     * @param path    - путь, endpoint
      * @param handler - обработчик
      */
     public static void addHandler(String method, String path, Handler handler) {
@@ -280,8 +260,9 @@ public class Server {
 
     /**
      * Метод extractHeader ищет и возвращает значение нужного заголовка.
+     *
      * @param headers - получает список строк, заголовки
-     * @param header - получает заголовок, который надо найти
+     * @param header  - получает заголовок, который надо найти
      * @return - возвращает значение заголовка
      */
     private static Optional<String> extractHeader(List<String> headers, String header) {
@@ -305,4 +286,26 @@ public class Server {
         }
         return -1;
     }
+
+    private static void printRequest(Request request) {
+        System.out.println("\n--- Request consist of:---");
+        System.out.println("Метод = " + request.getMethod());
+        System.out.println("Путь = " + request.getPath());
+
+        System.out.println("\nПараметры запроса");
+        for (NameValuePair param : request.getQueryParams()) {
+            System.out.println(param.getName() + " : " + param.getValue());
+        }
+
+        System.out.println("\nЗаголовки");
+        for (String param : request.getHeaders()) {
+            System.out.println(param);
+        }
+
+        System.out.println("\nПараметры тела запроса");
+        for (NameValuePair param : request.getPostParams()) {
+            System.out.println(param.getName() + " : " + param.getValue());
+        }
+    }
+
 }

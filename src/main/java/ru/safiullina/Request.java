@@ -47,6 +47,15 @@ public class Request {
         return headers;
     }
 
+    public List<NameValuePair> getPostParam(String name) {
+        List<NameValuePair> resultList = new ArrayList<>();
+        for (NameValuePair pair : bodyParams) {
+            if (pair.getName().equals(name)) {
+                resultList.add(pair);
+            }
+        }
+        return resultList;
+    }
     public List<NameValuePair> getPostParams() {
         return bodyParams;
     }
