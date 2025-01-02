@@ -23,7 +23,7 @@ public class Server {
     protected static final int LIMIT = 4096; // лимит на request line + заголовки
     private static final List<String> validPaths = List.of("/index.html", "/spring.svg", "/spring.png",
             "/resources.html", "/styles.css", "/app.js", "/links.html", "/forms.html", "/classic.html", "/events.html",
-            "/events.js");
+            "/events.js","/formsfile.html");
     protected static final String GET = "GET";
     protected static final String POST = "POST";
     final static List<String> allowedMethods = List.of(GET, POST); // Список разрешенных методов
@@ -78,10 +78,6 @@ public class Server {
             // Подсчитываем количество символов, которые по факту прочитали из потока
             final var read = in.read(buffer);
             System.out.printf("Прочитали %d байт \n", read);
-            // Прерываем обработку, если прочитали мало байт
-            if (read < 1) {
-                return;
-            }
 
             // Ищем request line
             final var requestLineDelimiter = new byte[]{'\r', '\n'};
@@ -140,6 +136,11 @@ public class Server {
             List<NameValuePair> bodyParams = new ArrayList<>();
             if (!method.equals(GET)) {
                 in.skip(headersDelimiter.length);
+                // Получим тип контента Content-Type
+                final var contentType = extractHeader(headers, "Content-Type");
+                if (contentType.isPresent()) {
+                    System.out.println("Content-Type : " + contentType);
+                }
                 // вычитываем Content-Length, чтобы прочитать body
                 final var contentLength = extractHeader(headers, "Content-Length");
                 if (contentLength.isPresent()) {
@@ -157,7 +158,7 @@ public class Server {
                 response(out, 400, "Bad Request");
                 return;
             }
-            // Объект Request состоит
+            // Выводим на экран объект Request
             printRequest(request);
 
 
@@ -288,7 +289,7 @@ public class Server {
     }
 
     private static void printRequest(Request request) {
-        System.out.println("\n--- Request consist of:---");
+        System.out.println("\n--- Request consists of:---");
         System.out.println("Метод = " + request.getMethod());
         System.out.println("Путь = " + request.getPath());
 

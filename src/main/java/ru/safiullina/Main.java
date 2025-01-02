@@ -11,7 +11,7 @@ public class Main {
             Server.response(responseStream, 201, "Created");
         });
         Server.addHandler("POST", "/", (request, responseStream) -> {
-            Server.response(responseStream, 200, "OK");
+            Server.response(responseStream, 201, "Created");
         });
 
         Server.start();
