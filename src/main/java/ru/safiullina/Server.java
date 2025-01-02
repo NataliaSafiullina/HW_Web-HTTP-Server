@@ -30,6 +30,11 @@ public class Server {
     private static final ConcurrentHashMap<String, Map<String, Handler>> handlersMap = new ConcurrentHashMap<>();
 
 
+    /**
+     * Основной метод.
+     * Метод start создаёт серверный сокет и в цикле ожидает подключения клиентов.
+     * Для обработки запросов клиента выделяет поток.
+     */
     public static void start() {
 
         // Создаем пул потоков для клиентов
@@ -55,6 +60,10 @@ public class Server {
     }
 
 
+    /**
+     * Метод handlers выбирает подходящий обработчик по параметрам запроса клиента.
+     * @param socket - получает сокет
+     */
     private static void handlers(Socket socket) {
         try (
                 final var in = new BufferedInputStream(socket.getInputStream());
@@ -68,6 +77,10 @@ public class Server {
             // Подсчитываем количество символов, которые по факту прочитали из потока
             final var read = in.read(buffer);
             System.out.printf("Прочитали %d байт \n", read);
+            // Прерываем обработку, если прочитали мало байт
+            if (read <= 0) {
+                return;
+            }
 
             // Ищем request line
             final var requestLineDelimiter = new byte[]{'\r', '\n'};
@@ -251,6 +264,12 @@ public class Server {
     }
 
 
+    /**
+     * Метод addHandler добавляет обработчик запроса
+     * @param method - метод запроса
+     * @param path - путь, endpoint
+     * @param handler - обработчик
+     */
     public static void addHandler(String method, String path, Handler handler) {
         if (!handlersMap.containsKey(method)) {
             handlersMap.put(method, new HashMap<>());
@@ -259,6 +278,12 @@ public class Server {
     }
 
 
+    /**
+     * Метод extractHeader ищет и возвращает значение нужного заголовка.
+     * @param headers - получает список строк, заголовки
+     * @param header - получает заголовок, который надо найти
+     * @return - возвращает значение заголовка
+     */
     private static Optional<String> extractHeader(List<String> headers, String header) {
         return headers.stream()
                 .filter(o -> o.startsWith(header))
