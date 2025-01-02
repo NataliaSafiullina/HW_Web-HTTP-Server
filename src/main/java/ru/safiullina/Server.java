@@ -1,9 +1,11 @@
 package ru.safiullina;
 
+import org.apache.commons.fileupload2.core.DiskFileItem;
+import org.apache.commons.fileupload2.core.DiskFileItemFactory;
+import org.apache.commons.fileupload2.jakarta.servlet5.JakartaServletFileUpload;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 
-import javax.servlet.http.HttpServletRequest;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -24,11 +26,12 @@ public class Server {
     protected static final int LIMIT = 4096; // лимит на request line + заголовки
     private static final List<String> validPaths = List.of("/index.html", "/spring.svg", "/spring.png",
             "/resources.html", "/styles.css", "/app.js", "/links.html", "/forms.html", "/classic.html", "/events.html",
-            "/events.js","/formsfile.html");
+            "/events.js", "/formsfile.html");
     protected static final String GET = "GET";
     protected static final String POST = "POST";
     final static List<String> allowedMethods = List.of(GET, POST); // Список разрешенных методов
     private static final ConcurrentHashMap<String, Map<String, Handler>> handlersMap = new ConcurrentHashMap<>();
+   private static final int MAX_SIZE = 5242880;
 
 
     /**
@@ -63,7 +66,6 @@ public class Server {
 
     /**
      * Метод handlers выбирает подходящий обработчик по параметрам запроса клиента.
-     *
      * @param socket - получает сокет
      */
     private static void handlers(Socket socket) {
@@ -135,27 +137,56 @@ public class Server {
 
             // Читаем и парсим тело запроса, при этом для GET тела нет
             List<NameValuePair> bodyParams = new ArrayList<>();
+            List<DiskFileItem> fileItems = new ArrayList<>();
             if (!method.equals(GET)) {
                 in.skip(headersDelimiter.length);
-                // Получим тип контента Content-Type
-                final var contentType = extractHeader(headers, "Content-Type");
-                if (contentType.isPresent()) {
-                    System.out.println("Content-Type : " + contentType);
-                    String[] contentTypeList = contentType.toString().split(";");
 
-                    // Обработка типа multipart/form-data
-                    if (contentTypeList[0].contains("multipart/form-data")) {
-                        System.out.println("multipart/form-data");
-                    }
+                // вычитываем Content-Length, чтобы прочитать body
+                int length;
+                final var contentLength = extractHeader(headers, "Content-Length");
+                if (contentLength.isPresent()) {
+                    System.out.println("Content-length : " + contentLength);
+                    length = Integer.parseInt(contentLength.get());
+                    final var bodyBytes = in.readNBytes(length);
 
-                    // Обработка типа x-www-form-urlencoded
-                    if (contentTypeList[0].contains("x-www-form-urlencoded")) {
-                        // вычитываем Content-Length, чтобы прочитать body
-                        final var contentLength = extractHeader(headers, "Content-Length");
-                        if (contentLength.isPresent()) {
-                            System.out.println("Content-length : " + contentLength);
-                            final var length = Integer.parseInt(contentLength.get());
-                            final var bodyBytes = in.readNBytes(length);
+                    // Получим тип контента Content-Type
+                    final var contentType = extractHeader(headers, "Content-Type");
+                    if (contentType.isPresent()) {
+                        System.out.println("Content-Type : " + contentType);
+                        String[] contentTypeList = contentType.toString().split(";");
+
+                        // Обработка типа multipart/form-data
+                        if (contentTypeList[0].contains("multipart/form-data")) {
+
+                            // Создаем объект класса, которые реализует класс объектов подходящих для FileUpload
+                            RequestContextImpl request = new RequestContextImpl(length,
+                                    "multipart/form-data", in);
+
+                            // Если объект содержит контент нужного типа - multipart
+                            // (как иначе, ведь мы сами тп руками указали), то применим какую-то магию
+                            if (JakartaServletFileUpload.isMultipartContent(request)) {
+
+                                // Create a factory for disk-based file items
+                                DiskFileItemFactory factory = DiskFileItemFactory.builder()
+                                        .setBufferSize(MAX_SIZE)
+                                        .get();
+
+                                // Create a new file upload handler
+                                JakartaServletFileUpload upload = new JakartaServletFileUpload(factory);
+                                upload.setFileSizeMax(MAX_SIZE);
+
+                                // Parse the request
+                                List<DiskFileItem> formItems = upload.parseRequest(request);
+
+                                // Если что-то получилось распарсить, запишем потом это в наш объект Request
+                                if (formItems != null && !formItems.isEmpty()) {
+                                    fileItems = formItems;
+                                }
+                            }
+                        }
+
+                        // Обработка типа x-www-form-urlencoded
+                        if (contentTypeList[0].contains("x-www-form-urlencoded")) {
                             final var body = new String(bodyBytes);
                             bodyParams = URLEncodedUtils.parse(body, StandardCharsets.UTF_8);
                         }
@@ -166,7 +197,7 @@ public class Server {
 
 
             // Создаем объект Request
-            Request request = new Request(method, path, params, headers, bodyParams);
+            Request request = new Request(method, path, params, headers, bodyParams, fileItems);
             if (request.getPath() == null || request.getMethod() == null) {
                 response(out, 400, "Bad Request");
                 return;
@@ -205,7 +236,8 @@ public class Server {
             // На все остальные endpoint отвечаем одинаково
             response(out, 200, "OK", filePath);
 
-        } catch (IOException | URISyntaxException e) {
+        } catch (IOException |
+                 URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }
@@ -320,6 +352,17 @@ public class Server {
         for (NameValuePair param : request.getPostParams()) {
             System.out.println(param.getName() + " : " + param.getValue());
         }
+
+        System.out.println("\nПараметры тела запроса типа multipart/form-data");
+        for (DiskFileItem item : request.getParts()) {
+            if (item.isFormField()) {
+                System.out.println(item.getFieldName() + ":" + item.getString());
+            }
+            if (!item.isFormField()) {
+                System.out.println(item.getName());
+            }
+        }
+        System.out.println("\n---------------------------");
     }
 
 }
